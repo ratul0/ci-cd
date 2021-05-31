@@ -3,16 +3,14 @@ package com.myorg;
 import dev.stratospheric.cdk.ApplicationEnvironment;
 import dev.stratospheric.cdk.Network;
 import dev.stratospheric.cdk.Service;
-import software.amazon.awscdk.core.App;
-import software.amazon.awscdk.core.Environment;
 import software.amazon.awscdk.core.Stack;
-import software.amazon.awscdk.core.StackProps;
+import software.amazon.awscdk.core.*;
+import software.amazon.awscdk.services.iam.Effect;
+import software.amazon.awscdk.services.iam.PolicyStatement;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import static com.myorg.Validations.requireNonEmpty;
-
+import static java.util.Collections.singletonList;
 
 public class ServiceApp {
 
@@ -20,22 +18,25 @@ public class ServiceApp {
         App app = new App();
 
         String environmentName = (String) app.getNode().tryGetContext("environmentName");
-        requireNonEmpty(environmentName, "context variable 'environmentName' must not be null");
+        Validations.requireNonEmpty(environmentName, "context variable 'environmentName' must not be null");
 
         String applicationName = (String) app.getNode().tryGetContext("applicationName");
-        requireNonEmpty(applicationName, "context variable 'applicationName' must not be null");
+        Validations.requireNonEmpty(applicationName, "context variable 'applicationName' must not be null");
 
         String accountId = (String) app.getNode().tryGetContext("accountId");
-        requireNonEmpty(accountId, "context variable 'accountId' must not be null");
+        Validations.requireNonEmpty(accountId, "context variable 'accountId' must not be null");
 
         String springProfile = (String) app.getNode().tryGetContext("springProfile");
-        requireNonEmpty(springProfile, "context variable 'springProfile' must not be null");
+        Validations.requireNonEmpty(springProfile, "context variable 'springProfile' must not be null");
 
-        String dockerImageUrl = (String) app.getNode().tryGetContext("dockerImageUrl");
-        requireNonEmpty(dockerImageUrl, "context variable 'dockerImageUrl' must not be null");
+        String dockerRepositoryName = (String) app.getNode().tryGetContext("dockerRepositoryName");
+        Validations.requireNonEmpty(dockerRepositoryName, "context variable 'dockerRepositoryName' must not be null");
+
+        String dockerImageTag = (String) app.getNode().tryGetContext("dockerImageTag");
+        Validations.requireNonEmpty(dockerImageTag, "context variable 'dockerImageTag' must not be null");
 
         String region = (String) app.getNode().tryGetContext("region");
-        requireNonEmpty(region, "context variable 'region' must not be null");
+        Validations.requireNonEmpty(region, "context variable 'region' must not be null");
 
         Environment awsEnvironment = makeEnv(accountId, region);
 
@@ -44,30 +45,60 @@ public class ServiceApp {
                 environmentName
         );
 
+        long timestamp = System.currentTimeMillis();
+        Stack parametersStack = new Stack(app, "ServiceParameters-" + timestamp, StackProps.builder()
+                .stackName(applicationEnvironment.prefix("Service-Parameters-" + timestamp))
+                .env(awsEnvironment)
+                .build());
+
         Stack serviceStack = new Stack(app, "ServiceStack", StackProps.builder()
                 .stackName(applicationEnvironment.prefix("Service"))
                 .env(awsEnvironment)
                 .build());
 
-        Service.DockerImageSource dockerImageSource = new Service.DockerImageSource(dockerImageUrl);
-        Network.NetworkOutputParameters networkOutputParameters = Network.getOutputParametersFromParameterStore(serviceStack, applicationEnvironment.getEnvironmentName());
-        Service.ServiceInputParameters serviceInputParameters = new Service.ServiceInputParameters(dockerImageSource, environmentVariables(springProfile))
-                .withHealthCheckIntervalSeconds(30);
 
-        Service service = new Service(
+        List<String> securityGroupIdsToGrantIngressFromEcs = Arrays.asList(
+        );
+
+        new Service(
                 serviceStack,
                 "Service",
                 awsEnvironment,
                 applicationEnvironment,
-                serviceInputParameters,
-                networkOutputParameters);
+                new Service.ServiceInputParameters(
+                        new Service.DockerImageSource(dockerRepositoryName, dockerImageTag),
+                        securityGroupIdsToGrantIngressFromEcs,
+                        environmentVariables(
+                                serviceStack,
+                                springProfile,
+                                environmentName))
+                        .withTaskRolePolicyStatements(List.of(
+                                PolicyStatement.Builder.create()
+                                        .effect(Effect.ALLOW)
+                                        .resources(singletonList("*"))
+                                        .actions(singletonList("cloudwatch:PutMetricData"))
+                                        .build()
+                        ))
+                        .withStickySessionsEnabled(true)
+                        .withHealthCheckPath("/actuator/health")
+                        .withAwsLogsDateTimeFormat("%Y-%m-%dT%H:%M:%S.%f%z")
+                        .withHealthCheckIntervalSeconds(30), // needs to be long enough to allow for slow start up with low-end computing instances
+
+                Network.getOutputParametersFromParameterStore(serviceStack, applicationEnvironment.getEnvironmentName()));
 
         app.synth();
     }
 
-    static Map<String, String> environmentVariables(String springProfile) {
+    static Map<String, String> environmentVariables(
+            Construct scope,
+            String springProfile,
+            String environmentName
+    ) {
         Map<String, String> vars = new HashMap<>();
+
         vars.put("SPRING_PROFILES_ACTIVE", springProfile);
+        vars.put("ENVIRONMENT_NAME", environmentName);
+
         return vars;
     }
 
