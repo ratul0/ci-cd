@@ -95,7 +95,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           cd cdk
-          npm run service:deploy -- -c environmentName=testing -c applicationName=demo-app -c dockerImageTag=${DOCKER_IMAGE_TAG}
+          npm run service:deploy -- -c environmentName=testing -c applicationName=demo-app -c dockerImageTag=${{ steps.dockerImageTag.outputs.tag }}
 
       - name: Clean up old parameter stacks
         if: github.ref == 'refs/heads/main'
