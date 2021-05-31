@@ -60,10 +60,12 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 11.0
+
       - name: building jar
-      run: |
-        ./mvnw --batch-mode --update-snapshots verify
-        mkdir staging && cp target/*.jar staging
+        run: |
+          ./mvnw --batch-mode --update-snapshots verify
+          mkdir staging && cp target/*.jar staging
+
       - name: save jar
         uses: actions/upload-artifact@v2
         with:
