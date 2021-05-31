@@ -3,7 +3,7 @@ name: create networks for production and testing env
 on:
   push:
     paths:
-      - 'application/**'
+      - 'src/**'
       - 'cdk/**/*Service*'
       - 'cdk/pom.xml'
     branches: [ main ]
