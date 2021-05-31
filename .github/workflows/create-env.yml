@@ -63,12 +63,6 @@ jobs:
       - name: Build and test project
         run: ./mvnw -f pom.xml clean verify
 
-      - name: Upload Maven build artifact
-        uses: actions/upload-artifact@v1
-        with:
-          name: artifact
-          path: target/app.jar
-
       - name: Create Docker image tag
         id: dockerImageTag
         run: echo "::set-output name=tag::$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA}"
