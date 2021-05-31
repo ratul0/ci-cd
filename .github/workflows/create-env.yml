@@ -64,10 +64,11 @@ jobs:
         run: ./mvnw -f pom.xml clean verify
 
       - name: Upload Maven build artifact
-        uses: actions/upload-artifact@v1
+      - run: mkdir staging && cp target/*.jar staging
+      - uses: actions/upload-artifact@v2
         with:
-          name: artifact
-          path: target/demo.jar
+          name: Package
+          path: staging
 
 
       - name: Create Docker image tag
