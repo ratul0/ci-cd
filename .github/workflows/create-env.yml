@@ -64,8 +64,8 @@ jobs:
         run: ./mvnw -f pom.xml clean verify
 
       - name: Upload Maven build artifact
-      - run: mkdir staging && cp target/*.jar staging
-      - uses: actions/upload-artifact@v2
+        run: mkdir staging && cp target/*.jar staging
+        uses: actions/upload-artifact@v2
         with:
           name: Package
           path: staging
