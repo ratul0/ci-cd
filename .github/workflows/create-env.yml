@@ -51,19 +51,22 @@ jobs:
       - name: Gradle cache
         uses: actions/cache@v1
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-maven-
       - name: Set up JDK 11
         uses: actions/setup-java@v1
         with:
           java-version: 11.0
 
-      - name: Build application
-        run: |
-          cd application
-          ./gradlew build --stacktrace
+      - name: Build and test project
+        run: ./mvnw -f pom.xml clean verify
+          - name: Upload Maven build artifact
+            uses: actions/upload-artifact@v1
+            with:
+              name: artifact
+              path: target/app.jar
 
       - name: Create Docker image tag
         id: dockerImageTag
@@ -74,13 +77,13 @@ jobs:
         env:
           DOCKER_IMAGE_TAG: ${{ steps.dockerImageTag.outputs.tag }}
         run: |
-          cd application
           docker build -t demo-app .
           docker tag demo-app ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/demo-app:${DOCKER_IMAGE_TAG}
           docker tag demo-app ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/demo-app:latest
           aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
           docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/demo-app:${DOCKER_IMAGE_TAG}
           docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/demo-app:latest
+
       - name: NPM install
         run: cd cdk && npm install
 
